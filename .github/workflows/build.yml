@@ -6,7 +6,7 @@ on:
       tag:
         description: 'Release Tag Name'
         required: true
-        default: 'v1.0.2-susfs'
+        default: 'v0.0.1-susfs'
 
 jobs:
   build:
@@ -18,7 +18,7 @@ jobs:
         target: [c2s, c2slte, c1s, c1slte, z3s, y2s, y2slte, x1s, x1slte, r8s]
 
     steps:
-      - name: Checkout source
+      - name: Checkout source code
         uses: actions/checkout@v4
         with:
           submodules: recursive
@@ -36,38 +36,28 @@ jobs:
           git config --global user.name "github-actions[bot]"
           git config --global user.email "41898282+github-actions[bot]@users.noreply.github.com"
 
-      - name: Free disk space
+      - name: Free up disk space
         run: |
           sudo rm -rf /usr/share/dotnet
           sudo rm -rf /opt/ghc
           sudo apt clean
 
-      - name: Update KernelSU-Next to latest version
+      - name: Update custom KernelSU-Next submodule to its latest remote commit
         run: |
-          echo "Updating KernelSU-Next submodule to the latest version..."
-          # Identify the KernelSU directory
+          echo "Updating custom KernelSU-Next submodule..."
+          # This safely fetches the latest commit from the specific custom fork branch defined in .gitmodules
+          git submodule update --remote --merge KernelSU-Next || git submodule update --remote --merge drivers/kernelsu || true
+          
+          # Display the current commit of the submodule to verify the update
           KSU_DIR=""
-          if [ -d "KernelSU" ]; then
-            KSU_DIR="KernelSU"
-          elif [ -d "drivers/kernelsu" ]; then
-            KSU_DIR="drivers/kernelsu"
-          elif [ -d "KernelSU-Next" ]; then
-            KSU_DIR="KernelSU-Next"
-          fi
-
+          if [ -d "KernelSU-Next" ]; then KSU_DIR="KernelSU-Next"; elif [ -d "drivers/kernelsu" ]; then KSU_DIR="drivers/kernelsu"; fi
           if [ -n "$KSU_DIR" ]; then
             cd "$KSU_DIR"
-            git fetch origin
-            # Switch to the active branch (next, main, or master) and pull latest changes
-            git checkout next 2>/dev/null || git checkout main 2>/dev/null || git checkout master 2>/dev/null
-            git pull origin $(git branch --show-current)
-            echo "KernelSU-Next successfully updated to commit: $(git rev-parse --short HEAD)"
+            echo "KernelSU-Next is now at commit: $(git rev-parse --short HEAD)"
             cd -
-          else
-            echo "KernelSU directory not found. Skipping update."
           fi
 
-      - name: Set Kernel Localversion (nhKRNL)
+      - name: Set Kernel Localversion (-nhKRNL)
         run: |
           echo "Applying -nhKRNL suffix to all defconfigs..."
           find arch/arm64/configs/ -type f -name "*defconfig" -exec sed -i 's/CONFIG_LOCALVERSION=.*/CONFIG_LOCALVERSION="-nhKRNL"/' {} +
@@ -75,11 +65,11 @@ jobs:
       - name: Make build script executable
         run: chmod +x build.sh
 
-      - name: Build kernel (${{ matrix.target }})
+      - name: Execute kernel compilation (${{ matrix.target }})
         run: |
           ./build.sh -m ${{ matrix.target }} -k y -r n
 
-      - name: Upload artifact (${{ matrix.target }})
+      - name: Upload compiled artifacts (${{ matrix.target }})
         uses: actions/upload-artifact@v4
         with:
           name: nhKRNL-${{ matrix.target }}
@@ -91,16 +81,16 @@ jobs:
     permissions:
       contents: write
     steps:
-      - name: Retrieve artifacts
+      - name: Retrieve compiled artifacts
         uses: actions/download-artifact@v4
         with:
           path: raw_artifacts
 
-      - name: Prepare release files
+      - name: Prepare and consolidate release files
         run: |
           mkdir -p final_artifacts
           find raw_artifacts/ -name "*.zip" -exec cp {} final_artifacts/ \;
-          echo "Files ready for release:"
+          echo "Files ready for GitHub Release:"
           ls -lh final_artifacts/
 
       - name: Publish GitHub Release
@@ -118,7 +108,7 @@ jobs:
             ## nhKRNL Official Release
             * **Tag:** `${{ github.event.inputs.tag }}`
             * **Kernel Identifier:** `nhKRNL`
-            * **Features:** Latest KernelSU-Next + SuSFS Integration
+            * **Features:** Custom KernelSU-Next fork + SuSFS Integration
             
             ### Supported Devices & Codenames
             **Galaxy S20 Series:**
