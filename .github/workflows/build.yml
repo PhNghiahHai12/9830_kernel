@@ -42,21 +42,6 @@ jobs:
           sudo rm -rf /opt/ghc
           sudo apt clean
 
-      - name: Update custom KernelSU-Next submodule to its latest remote commit
-        run: |
-          echo "Updating custom KernelSU-Next submodule..."
-          # This safely fetches the latest commit from the specific custom fork branch defined in .gitmodules
-          git submodule update --remote --merge KernelSU-Next || git submodule update --remote --merge drivers/kernelsu || true
-          
-          # Display the current commit of the submodule to verify the update
-          KSU_DIR=""
-          if [ -d "KernelSU-Next" ]; then KSU_DIR="KernelSU-Next"; elif [ -d "drivers/kernelsu" ]; then KSU_DIR="drivers/kernelsu"; fi
-          if [ -n "$KSU_DIR" ]; then
-            cd "$KSU_DIR"
-            echo "KernelSU-Next is now at commit: $(git rev-parse --short HEAD)"
-            cd -
-          fi
-
       - name: Set Kernel Localversion (-nhKRNL)
         run: |
           echo "Applying -nhKRNL suffix to all defconfigs..."
@@ -108,7 +93,6 @@ jobs:
             ## nhKRNL Official Release
             * **Tag:** `${{ github.event.inputs.tag }}`
             * **Kernel Identifier:** `nhKRNL`
-            * **Features:** Custom KernelSU-Next fork + SuSFS Integration
             
             ### Supported Devices & Codenames
             **Galaxy S20 Series:**
