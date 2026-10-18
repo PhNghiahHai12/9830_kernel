@@ -1,7 +1,12 @@
-name: Build ArtisanKRNL
+name: Build nhKRNL
 
 on:
   workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Release Tag Name'
+        required: true
+        default: 'v0.0.2-stable'
 
 jobs:
   build:
@@ -13,7 +18,7 @@ jobs:
         target: [c2s, c2slte, c1s, c1slte, z3s, y2s, y2slte, x1s, x1slte, r8s]
 
     steps:
-      - name: Checkout source
+      - name: Checkout source code
         uses: actions/checkout@v4
         with:
           submodules: recursive
@@ -31,21 +36,91 @@ jobs:
           git config --global user.name "github-actions[bot]"
           git config --global user.email "41898282+github-actions[bot]@users.noreply.github.com"
 
-      - name: Free disk space
+      - name: Free up disk space
         run: |
           sudo rm -rf /usr/share/dotnet
           sudo rm -rf /opt/ghc
           sudo apt clean
 
+      - name: Update custom KernelSU-Next submodule to its latest remote commit
+        run: |
+          echo "Updating custom KernelSU-Next submodule..."
+          # This safely fetches the latest commit from the specific custom fork branch defined in .gitmodules
+          git submodule update --remote --merge KernelSU-Next || git submodule update --remote --merge drivers/kernelsu || true
+          
+          # Display the current commit of the submodule to verify the update
+          KSU_DIR=""
+          if [ -d "KernelSU-Next" ]; then KSU_DIR="KernelSU-Next"; elif [ -d "drivers/kernelsu" ]; then KSU_DIR="drivers/kernelsu"; fi
+          if [ -n "$KSU_DIR" ]; then
+            cd "$KSU_DIR"
+            echo "KernelSU-Next is now at commit: $(git rev-parse --short HEAD)"
+            cd -
+          fi
+
+      - name: Set Kernel Localversion (-nhKRNL)
+        run: |
+          echo "Applying -nhKRNL suffix to all defconfigs..."
+          find arch/arm64/configs/ -type f -name "*defconfig" -exec sed -i 's/CONFIG_LOCALVERSION=.*/CONFIG_LOCALVERSION="-nhKRNL"/' {} +
+
       - name: Make build script executable
         run: chmod +x build.sh
 
-      - name: Build kernel (${{ matrix.target }})
+      - name: Execute kernel compilation (${{ matrix.target }})
         run: |
           ./build.sh -m ${{ matrix.target }} -k y -r n
 
-      - name: Upload artifact (${{ matrix.target }})
+      - name: Upload compiled artifacts (${{ matrix.target }})
         uses: actions/upload-artifact@v4
         with:
-          name: kernel-${{ matrix.target }}
+          name: nhKRNL-${{ matrix.target }}
           path: build/out/${{ matrix.target }}/*.zip
+
+  release:
+    needs: build
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+    steps:
+      - name: Retrieve compiled artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: raw_artifacts
+
+      - name: Prepare and consolidate release files
+        run: |
+          mkdir -p final_artifacts
+          find raw_artifacts/ -name "*.zip" -exec cp {} final_artifacts/ \;
+          echo "Files ready for GitHub Release:"
+          ls -lh final_artifacts/
+
+      - name: Publish GitHub Release
+        uses: ncipollo/release-action@v1
+        with:
+          tag: ${{ github.event.inputs.tag }}
+          name: "Release: ${{ github.event.inputs.tag }}"
+          draft: false
+          prerelease: false
+          allowUpdates: true
+          replacesArtifacts: true
+          token: ${{ secrets.GITHUB_TOKEN }}
+          artifacts: "final_artifacts/*.zip"
+          body: |
+            ## nhKRNL Official Release
+            * **Tag:** `${{ github.event.inputs.tag }}`
+            * **Kernel Identifier:** `nhKRNL`
+            * **Features:** Custom KernelSU-Next fork + SuSFS Integration
+            
+            ### Supported Devices & Codenames
+            **Galaxy S20 Series:**
+            * Galaxy S20 5G / LTE (`x1s` / `x1slte`)
+            * Galaxy S20+ 5G / LTE (`y2s` / `y2slte`)
+            * Galaxy S20 Ultra (`z3s`)
+            
+            **Galaxy Note 20 Series:**
+            * Galaxy Note 20 5G / LTE (`c1s` / `c1slte`)
+            * Galaxy Note 20 Ultra 5G / LTE (`c2s` / `c2slte`)
+            
+            **Galaxy S20 FE:**
+            * Galaxy S20 FE Exynos (`r8s`)
+            
+            *Please verify your device codename before flashing.*
