@@ -119,4 +119,18 @@ jobs:
             * **Tag:** `${{ github.event.inputs.tag }}`
             * **Kernel Identifier:** `nhKRNL`
             * **Features:** Latest KernelSU-Next + SuSFS Integration
-            * **Target Platforms:** Exynos 990 (S20, Note 20, S20 FE)
+            
+            ### Supported Devices & Codenames
+            **Galaxy S20 Series:**
+            * Galaxy S20 5G / LTE (`x1s` / `x1slte`)
+            * Galaxy S20+ 5G / LTE (`y2s` / `y2slte`)
+            * Galaxy S20 Ultra (`z3s`)
+            
+            **Galaxy Note 20 Series:**
+            * Galaxy Note 20 5G / LTE (`c1s` / `c1slte`)
+            * Galaxy Note 20 Ultra 5G / LTE (`c2s` / `c2slte`)
+            
+            **Galaxy S20 FE:**
+            * Galaxy S20 FE Exynos (`r8s`)
+            
+            *Please verify your device codename before flashing.*
