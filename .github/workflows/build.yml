@@ -1,7 +1,12 @@
-name: Build ArtisanKRNL
+name: Build nhKRNL
 
 on:
   workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Release Tag Name'
+        required: true
+        default: 'v1.0.2-susfs'
 
 jobs:
   build:
@@ -37,6 +42,36 @@ jobs:
           sudo rm -rf /opt/ghc
           sudo apt clean
 
+      - name: Update KernelSU-Next to latest version
+        run: |
+          echo "Updating KernelSU-Next submodule to the latest version..."
+          # Identify the KernelSU directory
+          KSU_DIR=""
+          if [ -d "KernelSU" ]; then
+            KSU_DIR="KernelSU"
+          elif [ -d "drivers/kernelsu" ]; then
+            KSU_DIR="drivers/kernelsu"
+          elif [ -d "KernelSU-Next" ]; then
+            KSU_DIR="KernelSU-Next"
+          fi
+
+          if [ -n "$KSU_DIR" ]; then
+            cd "$KSU_DIR"
+            git fetch origin
+            # Switch to the active branch (next, main, or master) and pull latest changes
+            git checkout next 2>/dev/null || git checkout main 2>/dev/null || git checkout master 2>/dev/null
+            git pull origin $(git branch --show-current)
+            echo "KernelSU-Next successfully updated to commit: $(git rev-parse --short HEAD)"
+            cd -
+          else
+            echo "KernelSU directory not found. Skipping update."
+          fi
+
+      - name: Set Kernel Localversion (nhKRNL)
+        run: |
+          echo "Applying -nhKRNL suffix to all defconfigs..."
+          find arch/arm64/configs/ -type f -name "*defconfig" -exec sed -i 's/CONFIG_LOCALVERSION=.*/CONFIG_LOCALVERSION="-nhKRNL"/' {} +
+
       - name: Make build script executable
         run: chmod +x build.sh
 
@@ -47,5 +82,41 @@ jobs:
       - name: Upload artifact (${{ matrix.target }})
         uses: actions/upload-artifact@v4
         with:
-          name: kernel-${{ matrix.target }}
+          name: nhKRNL-${{ matrix.target }}
           path: build/out/${{ matrix.target }}/*.zip
+
+  release:
+    needs: build
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+    steps:
+      - name: Retrieve artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: raw_artifacts
+
+      - name: Prepare release files
+        run: |
+          mkdir -p final_artifacts
+          find raw_artifacts/ -name "*.zip" -exec cp {} final_artifacts/ \;
+          echo "Files ready for release:"
+          ls -lh final_artifacts/
+
+      - name: Publish GitHub Release
+        uses: ncipollo/release-action@v1
+        with:
+          tag: ${{ github.event.inputs.tag }}
+          name: "Release: ${{ github.event.inputs.tag }}"
+          draft: false
+          prerelease: false
+          allowUpdates: true
+          replacesArtifacts: true
+          token: ${{ secrets.GITHUB_TOKEN }}
+          artifacts: "final_artifacts/*.zip"
+          body: |
+            ## nhKRNL Official Release
+            * **Tag:** `${{ github.event.inputs.tag }}`
+            * **Kernel Identifier:** `nhKRNL`
+            * **Features:** Latest KernelSU-Next + SuSFS Integration
+            * **Target Platforms:** Exynos 990 (S20, Note 20, S20 FE)
