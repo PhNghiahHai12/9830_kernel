@@ -6,7 +6,7 @@ on:
       tag:
         description: 'Release Tag Name'
         required: true
-        default: 'v0.0.2-susfs'
+        default: 'v0.0.2-stable'
 
 jobs:
   build:
@@ -42,24 +42,20 @@ jobs:
           sudo rm -rf /opt/ghc
           sudo apt clean
 
-      - name: Force KernelSU-Next to legacy branch and bump to 3.4.2
+      - name: Force KernelSU-Next to official v3.4.2
         run: |
-          echo "Switching KernelSU-Next to legacy branch and v3.4.2..."
+          echo "Switching KernelSU-Next to official tag v3.4.2..."
           
           KSU_DIR=""
           if [ -d "KernelSU-Next" ]; then KSU_DIR="KernelSU-Next"; elif [ -d "drivers/kernelsu" ]; then KSU_DIR="drivers/kernelsu"; fi
           
           if [ -n "$KSU_DIR" ]; then
             cd "$KSU_DIR"
-            # Fetch all history and tags
-            git fetch --all --tags
+            # Fetch tags directly from the official upstream repository to bypass outdated forks
+            git fetch https://github.com/rifsxd/KernelSU-Next.git --tags
             
-            # Switch to the legacy branch
-            git checkout legacy
-            
-            # Hard reset to the commit of version 3.4.2 (to ensure no merge conflicts)
-            # If their tag is "3.4.2" instead of "v3.4.2", modify the line below accordingly
-            git reset --hard v3.4.2
+            # Force checkout the specific v3.4.2 tag
+            git checkout v3.4.2
             git clean -fdx
             
             echo "KernelSU-Next is now at: $(git describe --tags --always) - Commit: $(git rev-parse --short HEAD)"
@@ -119,7 +115,7 @@ jobs:
             ## nhKRNL Official Release
             * **Tag:** `${{ github.event.inputs.tag }}`
             * **Kernel Identifier:** `nhKRNL`
-            * **Features:** KernelSU-Next v3.4.2 (Legacy Branch) + SuSFS Integration
+            * **Features:** Official KernelSU-Next (v3.4.2) + SuSFS Integration
             
             ### Supported Devices & Codenames
             **Galaxy S20 Series:**
