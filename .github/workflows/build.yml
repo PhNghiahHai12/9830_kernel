@@ -42,23 +42,26 @@ jobs:
           sudo rm -rf /opt/ghc
           sudo apt clean
 
-      - name: Force KernelSU-Next to official v3.4.2
+      - name: Update KernelSU-Next to dev branch
         run: |
-          echo "Switching KernelSU-Next to official tag v3.4.2..."
+          echo "Switching KernelSU-Next to the latest dev branch..."
           
           KSU_DIR=""
           if [ -d "KernelSU-Next" ]; then KSU_DIR="KernelSU-Next"; elif [ -d "drivers/kernelsu" ]; then KSU_DIR="drivers/kernelsu"; fi
           
           if [ -n "$KSU_DIR" ]; then
             cd "$KSU_DIR"
-            # Fetch tags directly from the official upstream repository to bypass outdated forks
-            git fetch https://github.com/rifsxd/KernelSU-Next.git --tags
+            # Fetch all updates from the submodule's origin
+            git fetch origin
             
-            # Force checkout the specific v3.4.2 tag
-            git checkout v3.4.2
+            # Switch to the dev branch
+            git checkout dev
+            
+            # Hard reset to ensure it matches the remote dev branch exactly
+            git reset --hard origin/dev
             git clean -fdx
             
-            echo "KernelSU-Next is now at: $(git describe --tags --always) - Commit: $(git rev-parse --short HEAD)"
+            echo "KernelSU-Next is now on branch 'dev' - Commit: $(git rev-parse --short HEAD)"
             cd -
           else
             echo "KernelSU directory not found!"
@@ -115,7 +118,7 @@ jobs:
             ## nhKRNL Official Release
             * **Tag:** `${{ github.event.inputs.tag }}`
             * **Kernel Identifier:** `nhKRNL`
-            * **Features:** Official KernelSU-Next (v3.4.2) + SuSFS Integration
+            * **Features:** KernelSU-Next (Dev Branch) + SuSFS Integration
             
             ### Supported Devices & Codenames
             **Galaxy S20 Series:**
